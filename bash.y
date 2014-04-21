@@ -17,12 +17,12 @@ static REDIRECTEE redir;
 %token PIPE
 %token GREAT
 %token LESS
-%token OQOUT
-%token CQUOT
 %token SEMI
-%token <word> WORD ASSIGNMENT_WORD
+%token <word> WORD
 %token NUMBER
 
+%type <command> inputunit command list list0 list1 simple_list simple_list1 simple_command shell_command
+%type <redirect> redirection redirections
 
 %start inputunit
 
@@ -31,7 +31,7 @@ static REDIRECTEE redir;
 
 %%
 
-inputunit:	simple_list '\n' 	/* your SIMPLE_LIST */
+inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
 			{
 			  /* Case of regular command.  Discard the error
 			     safety net,and return the command just parsed. */
@@ -77,7 +77,7 @@ inputunit:	simple_list '\n' 	/* your SIMPLE_LIST */
 redirection:	GREAT WORD
 			{
 			  redir.filename = $2;
-			  $$ = make_redirection (1, r_output_direction, redir); /*make_redirection is your function */
+			  $$ = make_redirection (1, r_output_direction, redir); /*make_redirection is our function */
 			}
 	|	LESS WORD
 			{
@@ -95,13 +95,6 @@ redirection:	GREAT WORD
 			  redir.filename = $3;
 			  $$ = make_redirection ($1, r_input_direction, redir);
 			}
-
-simple_command_element: WORD
-			{ $$.word = $1; $$.redirect = 0; }
-	|	ASSIGNMENT_WORD
-			{ $$.word = $1; $$.redirect = 0; }
-	|	redirection
-			{ $$.redirect = $1; $$.word = 0; }
 	;
 
 redirections:	redirection
@@ -119,20 +112,82 @@ redirections:	redirection
 			}
 	;
 
-list_terminator: '\n'
-		|	';'
-		|	yacc_EOF
+simple_command_element: WORD
+			{ $$.word = $1; $$.redirect = 0; }
+	|	redirection
+			{ $$.redirect = $1; $$.word = 0; }
+	;
+
+simple_command:	simple_command_element
+			{ $$ = make_simple_command ($1, (COMMAND *)NULL); }
+	|	simple_command simple_command_element
+			{ $$ = make_simple_command ($2, $1); }
+	;
+
+command:	simple_command
+			{ $$ = clean_simple_command ($1); }
+	|	shell_command
+			{ $$ = $1; }
+	;
+
+shell_command:	'(' list ')'
+			{ $2->subshell = 1; $$ = $2; }
 		;
 
-newlines:
-		|	newlines '\n'
-		;
+list:		newlines list0
+			{ $$ = $2; }
+	;
 
-pipeline:
-		pipeline '|' newlines pipeline
+list0:		list1
+	|	list1 '\n' newlines
+	//|	list1 '&' newlines
+	//		{ $$ = command_connect ($1, 0, '&'); }
+	|	list1 ';' newlines
+
+	;
+
+list1:	//	list1 AND_AND newlines list1
+	//		{ $$ = command_connect ($1, $4, AND_AND); }
+	//|	list1 OR_OR newlines list1
+	//		{ $$ = command_connect ($1, $4, OR_OR); }
+	//|	list1 '&' newlines list1
+	//		{ $$ = command_connect ($1, $4, '&'); }
+	|	list1 ';' newlines list1
+			{ $$ = command_connect ($1, $4, ';'); }
+	|	list1 '\n' newlines list1
+			{ $$ = command_connect ($1, $4, ';'); }
+	|	list1 '|' newlines list1
 			{ $$ = command_connect ($1, $4, '|'); }
 	|	command
-			{ $$ = $1; }
+	;
+
+
+list_terminator:'\n'
+	|	';'
+	|	yacc_EOF
+	;
+
+newlines:
+	|	newlines '\n'
+	;
+
+simple_list:	simple_list1
+	//|	simple_list1 '&'
+	//		{ $$ = command_connect ($1, (COMMAND *)NULL, '&'); }
+	|	simple_list1 ';'
+	;
+
+simple_list1:	//simple_list1 AND_AND newlines simple_list1
+		//	{ $$ = command_connect ($1, $4, AND_AND); }
+	//|	simple_list1 OR_OR newlines simple_list1
+	//		{ $$ = command_connect ($1, $4, OR_OR); }
+	//|	simple_list1 '&' simple_list1
+	//		{ $$ = command_connect ($1, $3, '&'); }
+	|	simple_list1 ';' simple_list1
+			{ $$ = command_connect ($1, $3, ';'); }
+	|	simple_list1 '|' newlines simple_list1
+			{ $$ = command_connect ($1, $4, '|'); }
+	|	command
 	;
 
 %%

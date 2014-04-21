@@ -6,17 +6,18 @@
 %option noyywrap
 %option debug
 
-digit [0-9]
-nl    [\r\n]
+WORD [\w+]
 
 %%
 
-"+"                     return PLUS;
-"-"                     return MINUS;
+"|"                     return PIPE;
+">"                     return GREAT;
+"<"			return LESS;
+";"                     return SEMI;
+"<"			return LESS;
 {digit}*\.?{digit}+     {
                             yylval.dval = std::atof(yytext);
                             return NUM;
                         }
-{nl}                    return NL;
 .                       /* ignore */
 
