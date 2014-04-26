@@ -1,7 +1,8 @@
 %{
 #include <iostream>
 #include <stdio.h>
-#include "helper.h"
+#include "types.h"
+#include "functions.c"
 int yylex(void);
 void yyerror(char const *);
 static REDIRECTEE redir;
@@ -10,8 +11,13 @@ static REDIRECTEE redir;
 %defines "bash_defines.h"
 
 %union {
-    double dval; 
-    REDIRECT *redirect;
+  WORD_DESC *word;		/* the word that we read. */
+  int number;			/* the number that we read. */
+  WORD_LIST *word_list;
+  COMMAND *command;
+  REDIRECT *redirect;
+  ELEMENT element;
+  PATTERN_LIST *pattern;
 }
 
 %token PIPE
