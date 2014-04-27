@@ -7,13 +7,13 @@
 %option debug
 
 WORD [\w+]
-
+NUMBER [0-9]
 %%
 
-"|"                     return PIPE;
-">"                     return GREAT;
+"|"         return PIPE;
+">"         return GREAT;
 "<"			return LESS;
-";"                     return SEMI;
+";"         return SEMI;
 "<"			return LESS;
 {digit}*\.?{digit}+     {
                             yylval.dval = std::atof(yytext);

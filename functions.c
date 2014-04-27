@@ -1,5 +1,7 @@
-#include "types.h"
 #include <stdio.h>
+#include "general.c"
+
+COMMAND *global_command = (COMMAND *)NULL;
 
 COMMAND * make_command (command_type type, SIMPLE_COM *pointer)
 {
@@ -11,32 +13,16 @@ COMMAND * make_command (command_type type, SIMPLE_COM *pointer)
   return (temp);
 }
 
-COMMAND * command_connect (COMMAND *com1, *com2, int connector)
+COMMAND * command_connect (COMMAND *com1, COMMAND *com2, int connector)
 {
   CONNECTION *temp = (CONNECTION *)malloc (sizeof (CONNECTION));
   temp->connector = connector;
   temp->first = com1;
   temp->second = com2;
-  return (make_command (cm_connection, temp));
+  return (make_command (cm_connection, (SIMPLE_COM *)temp));
 }
 
-WORD_LIST * make_word_list (WORD_DESC *word, WORD_LIST *link)
-{
-  WORD_LIST *temp = (WORD_LIST *)malloc (sizeof (WORD_LIST));
-  temp->word = word;
-  temp->next = link;
-  return (temp);
-}
-
-WORD_LIST * add_string_to_list (char *string, WORD_LIST *list)
-{
-  WORD_LIST *temp = (WORD_LIST *)malloc (sizeof (WORD_LIST));
-  temp->word = make_word (string);
-  temp->next = list;
-  return (temp);
-}
-
-REDIRECT * make_redirection (source, enum r_instruction instruction, dest)
+REDIRECT * make_redirection (int source, r_instruction instruction, dest)
 {
   REDIRECT *temp = (REDIRECT *)malloc (sizeof (REDIRECT));
   int kill_leading = 0;
@@ -50,13 +36,13 @@ REDIRECT * make_redirection (source, enum r_instruction instruction, dest)
   switch (instruction) {
 
   case r_output_direction:  /* >foo */
-    temp->flags = O_TRUNC | O_WRONLY | O_CREAT;
+    //temp->flags = O_TRUNC | O_WRONLY | O_CREAT;
     break;
 
   case r_input_direction: /* <foo */
- // case r_inputa_direction:  /* foo & makes this. */
+  case r_inputa_direction:  /* foo & makes this. */
    // temp->flags = O_RDONLY;
-    //break;
+    break;
 
   //case r_duplicating:   /* 1<&2 */
     
@@ -65,7 +51,7 @@ REDIRECT * make_redirection (source, enum r_instruction instruction, dest)
     //break;
 
   default:
-    report_error ("Redirection instruction from yyparse () '%d' is\n\
+    fprintf(stderr, "Redirection instruction from yyparse () '%d' is\n\
 out of range in make_redirection ().", instruction);
     abort ();
     break;
@@ -79,12 +65,12 @@ out of range in make_redirection ().", instruction);
 COMMAND * clean_simple_command (COMMAND *command)
 {
   if (command->type != cm_simple)
-    programming_error ("clean_simple_command () got a command with type %d.", command->type);
+    fprintf(stderr, "clean_simple_command () got a command with type %d.", command->type);
   else {
     command->value.Simple->words =
-      (WORD_LIST *)reverse_list (command->value.Simple->words);
+      (WORD_LIST *)reverse_list ((GENERIC_LIST *)command->value.Simple->words);
     command->value.Simple->redirects = 
-      (REDIRECT *)reverse_list (command->value.Simple->redirects);
+      (REDIRECT *)reverse_list ((GENERIC_LIST *)command->value.Simple->redirects);
   }
   return (command);
 }

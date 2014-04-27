@@ -1,11 +1,10 @@
 %{
-#include <iostream>
 #include <stdio.h>
-#include "types.h"
 #include "functions.c"
 int yylex(void);
 void yyerror(char const *);
-static REDIRECTEE redir;
+int interactive = 1;
+extern int eof_encountered;
 %}
 
 %defines "bash_defines.h"
@@ -13,11 +12,9 @@ static REDIRECTEE redir;
 %union {
   WORD_DESC *word;		/* the word that we read. */
   int number;			/* the number that we read. */
-  WORD_LIST *word_list;
   COMMAND *command;
   REDIRECT *redirect;
   ELEMENT element;
-  PATTERN_LIST *pattern;
 }
 
 %token PIPE
@@ -25,10 +22,11 @@ static REDIRECTEE redir;
 %token LESS
 %token SEMI
 %token <word> WORD
-%token NUMBER
+%token <number> NUMBER
 
 %type <command> inputunit command list list0 list1 simple_list simple_list1 simple_command shell_command
 %type <redirect> redirection redirections
+%type <element> simple_command_element
 
 %start inputunit
 
@@ -81,26 +79,13 @@ inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
 
 
 redirection:	GREAT WORD
-			{
-			  redir.filename = $2;
-			  $$ = make_redirection (1, r_output_direction, redir); /*make_redirection is our function */
-			}
+			{ $$ = make_redirection ( 1, r_output_direction, $2); }
 	|	LESS WORD
-			{
-			  redir.filename = $2;
-			  $$ = make_redirection (0, r_input_direction, redir);
-			}
-	
+			{ $$ = make_redirection ( 0, r_input_direction, $2); }
 	|	NUMBER GREAT WORD
-			{
-			  redir.filename = $3;
-			  $$ = make_redirection ($1, r_output_direction, redir);
-			}
+			{ $$ = make_redirection ($1, r_output_direction, $3); }
 	|	NUMBER LESS WORD
-			{
-			  redir.filename = $3;
-			  $$ = make_redirection ($1, r_input_direction, redir);
-			}
+			{ $$ = make_redirection ($1, r_input_direction, $3); }
 	;
 
 redirections:	redirection
@@ -109,13 +94,22 @@ redirections:	redirection
 			}
 	|	redirections redirection
 			{ 
-			  register REDIRECT *t = $1;
+			  REDIRECT *t = $1;
 
 			  while (t->next)
 			    t = t->next;
 			  t->next = $2; 
 			  $$ = $1;
 			}
+	;
+
+command:	simple_command
+			{ $$ = clean_simple_command ($1); }
+	|	shell_command
+			{ $$ = $1; }
+
+	|	shell_command redirections
+			{ $$->redirects = $2; $$ = $1; }
 	;
 
 simple_command_element: WORD
@@ -130,15 +124,9 @@ simple_command:	simple_command_element
 			{ $$ = make_simple_command ($2, $1); }
 	;
 
-command:	simple_command
-			{ $$ = clean_simple_command ($1); }
-	|	shell_command
-			{ $$ = $1; }
-	;
-
 shell_command:	'(' list ')'
 			{ $2->subshell = 1; $$ = $2; }
-		;
+	;
 
 list:		newlines list0
 			{ $$ = $2; }
@@ -158,19 +146,13 @@ list1:	//	list1 AND_AND newlines list1
 	//		{ $$ = command_connect ($1, $4, OR_OR); }
 	//|	list1 '&' newlines list1
 	//		{ $$ = command_connect ($1, $4, '&'); }
-	|	list1 ';' newlines list1
+		list1 ';' newlines list1
 			{ $$ = command_connect ($1, $4, ';'); }
 	|	list1 '\n' newlines list1
 			{ $$ = command_connect ($1, $4, ';'); }
 	|	list1 '|' newlines list1
 			{ $$ = command_connect ($1, $4, '|'); }
 	|	command
-	;
-
-
-list_terminator:'\n'
-	|	';'
-	|	yacc_EOF
 	;
 
 newlines:
@@ -189,7 +171,7 @@ simple_list1:	//simple_list1 AND_AND newlines simple_list1
 	//		{ $$ = command_connect ($1, $4, OR_OR); }
 	//|	simple_list1 '&' simple_list1
 	//		{ $$ = command_connect ($1, $3, '&'); }
-	|	simple_list1 ';' simple_list1
+		simple_list1 ';' simple_list1
 			{ $$ = command_connect ($1, $3, ';'); }
 	|	simple_list1 '|' newlines simple_list1
 			{ $$ = command_connect ($1, $4, '|'); }
@@ -198,10 +180,42 @@ simple_list1:	//simple_list1 AND_AND newlines simple_list1
 
 %%
 
+/* Report a syntax error with line numbers, etc.
+   Call here for recoverable errors.  If you have a message to print,
+   then place it in MESSAGE, otherwise pass NULL and this will figure
+   out an appropriate message for you. */
+void report_syntax_error (char *message)
+{
+  if (message)
+  {
+      if (!interactive)
+	  {
+	  	char *name = stream_name ? stream_name : "stdin";
+	  	fprintf(stderr, "%s:%d: `%s'", name, line_number, message);
+	  
+	  }
+      else
+		fprintf(stderr, "%s", message);
+
+      return;
+  }
+}
+
+/* Report a syntax error, and restart the parser.  Call here for fatal
+   errors. */
 void yyerror(char const *s)
 {
-    fprintf(stderr, "%s\n", s);
+    report_syntax_error ((char *)NULL);
+  	//reset_parser ();
 }
+
+/* The number of times that we have encountered an EOF character without
+   another character intervening.  When this gets above the limit, the
+   shell terminates. */
+int eof_encountered = 0;
+
+/* The limit for eof_encountered. */
+int eof_encountered_limit = 10;
 
 int main(void)
 {

@@ -1,7 +1,12 @@
+#include <stdlib.h>
 /* Command Types: */
-enum command_type { cm_simple, cm_connection };
+typedef enum { cm_simple, cm_connection } command_type;
 
-enum r_instruction { r_output_direction, r_input_direction };
+typedef enum { r_output_direction, r_input_direction, r_inputa_direction } r_instruction;
+
+typedef struct g_list {
+  struct g_list *next;
+} GENERIC_LIST;
 
 /* A structure which represents a word. */
 typedef struct word_desc {
@@ -19,18 +24,17 @@ typedef struct word_list {
   WORD_DESC *word;
 } WORD_LIST;
 
-typedef union {
-  long dest;                    /* Place to redirect REDIRECTOR to, or ... */
-  WORD_DESC *filename;          /* filename to redirect to. */
-} REDIRECTEE;
-
 /* What a redirection descriptor looks like.  If FLAGS is IS_DESCRIPTOR,
    then we use REDIRECTEE.DEST, else we use the file specified. */
 typedef struct redirect {
   struct redirect *next;	/* Next element, or NULL. */
   int redirector;		/* Descriptor to be redirected. */
   int flags;			/* Flag value for `open'. */
-  enum r_instruction  instruction; /* What to do with the information. */
+  union {
+  	int dest;                    /* Place to redirect REDIRECTOR to, or ... */
+  	WORD_DESC *filename;          /* filename to redirect to. */
+  } redirectee;
+  r_instruction  instruction; /* What to do with the information. */
   char *here_doc_eof;		/* The word that appeared in <<foo. */
 } REDIRECT;
 
@@ -41,15 +45,14 @@ typedef struct element {
   REDIRECT *redirect;
 } ELEMENT;
 
-union {
-    struct connection *Connection;
-    struct simple_com *Simple;
- } VALUE;
-
 /* What a command looks like. */
 typedef struct command {
-  enum command_type type;	/* FOR CASE WHILE IF CONNECTION or SIMPLE. */
+  command_type type;	/* FOR CASE WHILE IF CONNECTION or SIMPLE. */
   int subshell;			/* Non-zero means execute in a subshell. */
+  union {
+    struct connection *Connection;
+    struct simple_com *Simple;
+  } value;
   REDIRECT *redirects;		/* Special redirects for FOR CASE, etc. */
 } COMMAND;
 
