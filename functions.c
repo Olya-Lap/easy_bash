@@ -22,14 +22,14 @@ COMMAND * command_connect (COMMAND *com1, COMMAND *com2, int connector)
   return (make_command (cm_connection, (SIMPLE_COM *)temp));
 }
 
-REDIRECT * make_redirection (int source, r_instruction instruction, dest)
+REDIRECT * make_redirection (int source, r_instruction instruction, REDIRECTEE dest_and_filename)
 {
   REDIRECT *temp = (REDIRECT *)malloc (sizeof (REDIRECT));
   int kill_leading = 0;
 
   /* First do the common cases. */
   temp->redirector = source;
-  temp->redirectee.dest = dest;
+  temp->redirectee = dest_and_filename;
   temp->instruction = instruction;
   temp->next = (REDIRECT *)NULL;
 

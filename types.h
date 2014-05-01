@@ -24,16 +24,18 @@ typedef struct word_list {
   WORD_DESC *word;
 } WORD_LIST;
 
+ typedef struct redirectee {
+  	long dest;                    /* Place to redirect REDIRECTOR to, or ... */
+  	WORD_DESC *filename;          /* filename to redirect to. */
+  } REDIRECTEE;
+
 /* What a redirection descriptor looks like.  If FLAGS is IS_DESCRIPTOR,
    then we use REDIRECTEE.DEST, else we use the file specified. */
 typedef struct redirect {
   struct redirect *next;	/* Next element, or NULL. */
   int redirector;		/* Descriptor to be redirected. */
   int flags;			/* Flag value for `open'. */
-  union {
-  	int dest;                    /* Place to redirect REDIRECTOR to, or ... */
-  	WORD_DESC *filename;          /* filename to redirect to. */
-  } redirectee;
+  REDIRECTEE redirectee;
   r_instruction  instruction; /* What to do with the information. */
   char *here_doc_eof;		/* The word that appeared in <<foo. */
 } REDIRECT;

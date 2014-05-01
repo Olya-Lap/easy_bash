@@ -1,23 +1,22 @@
 %{
-#include <cstdlib>
 #include "bash_defines.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+using namespace std;
 %}
 
 %option noyywrap
 %option debug
 
-WORD [\w+]
-NUMBER [0-9]
+nchar [a-zA-Z_0-9]
+digit [0-9]
 %%
 
 "|"         return PIPE;
 ">"         return GREAT;
 "<"			return LESS;
 ";"         return SEMI;
-"<"			return LESS;
-{digit}*\.?{digit}+     {
-                            yylval.dval = std::atof(yytext);
-                            return NUM;
-                        }
-.                       /* ignore */
-
+{digit}+	{ cout << "number"; }
+{nchar}+	{ system(yytext);  }
+%%

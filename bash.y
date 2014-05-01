@@ -1,10 +1,13 @@
 %{
 #include <stdio.h>
 #include "functions.c"
+#define YYDEBUG 1
 int yylex(void);
 void yyerror(char const *);
 int interactive = 1;
 extern int eof_encountered;
+extern int line_number;
+static REDIRECTEE redir;
 %}
 
 %defines "bash_defines.h"
@@ -41,7 +44,7 @@ inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
 			     safety net,and return the command just parsed. */
 			  global_command = $1;
 			  eof_encountered = 0;
-			  discard_parser_constructs (0);
+			  //discard_parser_constructs (0);
 			  YYACCEPT;
 			}
 	|	'\n'
@@ -57,7 +60,7 @@ inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
 			  /* Error during parsing.  Return NULL command. */
 			  global_command = (COMMAND *)NULL;
 			  eof_encountered = 0;
-			  discard_parser_constructs (1);
+			  //discard_parser_constructs (1);
 			  if (interactive)
 			    {
 			      YYACCEPT;
@@ -72,20 +75,32 @@ inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
 			  /* Case of EOF seen by itself.  Do ignoreeof or 
 			     not. */
 			  global_command = (COMMAND *)NULL;
-			  handle_eof_input_unit ();
+			  //handle_eof_input_unit ();
 			  YYACCEPT;
 			}
 	;
 
 
 redirection:	GREAT WORD
-			{ $$ = make_redirection ( 1, r_output_direction, $2); }
+			{
+			  redir.filename = $2;
+			  $$ = make_redirection (1, r_output_direction, redir);
+			}
 	|	LESS WORD
-			{ $$ = make_redirection ( 0, r_input_direction, $2); }
+			{
+			  redir.filename = $2;
+			  $$ = make_redirection (0, r_input_direction, redir);
+			}
 	|	NUMBER GREAT WORD
-			{ $$ = make_redirection ($1, r_output_direction, $3); }
+			{
+			  redir.filename = $3;
+			  $$ = make_redirection ($1, r_output_direction, redir);
+			}
 	|	NUMBER LESS WORD
-			{ $$ = make_redirection ($1, r_input_direction, $3); }
+			{
+			  redir.filename = $3;
+			  $$ = make_redirection ($1, r_input_direction, redir);
+			}
 	;
 
 redirections:	redirection
@@ -190,8 +205,8 @@ void report_syntax_error (char *message)
   {
       if (!interactive)
 	  {
-	  	char *name = stream_name ? stream_name : "stdin";
-	  	fprintf(stderr, "%s:%d: `%s'", name, line_number, message);
+	  	char* stream_name = "stdin";
+	  	fprintf(stderr, "%s:%d: `%s'", stream_name, line_number, message);
 	  
 	  }
       else
@@ -216,6 +231,9 @@ int eof_encountered = 0;
 
 /* The limit for eof_encountered. */
 int eof_encountered_limit = 10;
+
+/* The globally known line number. */
+int line_number = 0;
 
 int main(void)
 {
