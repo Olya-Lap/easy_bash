@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include "functions.c"
 #define YYDEBUG 1
+#define YYPRINT(file, type, value) fprintf(file, "%d", value);
+#define CMD_WANT_SUBSHELL  0x01	/* User wants a subshell: ( command ) */
 int yylex(void);
 void yyerror(char const *);
 int interactive = 1;
@@ -27,13 +29,16 @@ static REDIRECTEE redir;
 %token <word> WORD
 %token <number> NUMBER
 
-%type <command> inputunit command list list0 list1 simple_list simple_list1 simple_command shell_command
+%type <command> inputunit command pipeline
+%type <command> list list0 list1 simple_list simple_list1
+%type <command> simple_command shell_command_1 shell_command
+%type <command> subshell
 %type <redirect> redirection redirections
 %type <element> simple_command_element
 
 %start inputunit
 
-%left SEMI '\n' yacc_EOF
+%left AND SEMI '\n' yacc_EOF
 %right PIPE
 
 %%
@@ -44,7 +49,6 @@ inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
 			     safety net,and return the command just parsed. */
 			  global_command = $1;
 			  eof_encountered = 0;
-			  //discard_parser_constructs (0);
 			  YYACCEPT;
 			}
 	|	'\n'
@@ -60,7 +64,6 @@ inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
 			  /* Error during parsing.  Return NULL command. */
 			  global_command = (COMMAND *)NULL;
 			  eof_encountered = 0;
-			  //discard_parser_constructs (1);
 			  if (interactive)
 			    {
 			      YYACCEPT;
@@ -122,9 +125,6 @@ command:	simple_command
 			{ $$ = clean_simple_command ($1); }
 	|	shell_command
 			{ $$ = $1; }
-
-	|	shell_command redirections
-			{ $$->redirects = $2; $$ = $1; }
 	;
 
 simple_command_element: WORD
@@ -139,9 +139,30 @@ simple_command:	simple_command_element
 			{ $$ = make_simple_command ($2, $1); }
 	;
 
-shell_command:	'(' list ')'
-			{ $2->subshell = 1; $$ = $2; }
+shell_command:	shell_command_1
+			{ $$ = $1; }
+	|	shell_command_1 redirections
+			{
+			  if ($1->redirects)
+			    {
+			      REDIRECT *t;
+			      for (t = $1->redirects; t->next; t = t->next)
+				;
+			      t->next = $2;
+			    }
+			  else
+			    $1->redirects = $2;
+			  $$ = $1;
+			}
 	;
+
+shell_command_1:	subshell
+			{ $$ = $1; }
+	;
+
+subshell:	'(' list ')'
+			{ $2->flags |= CMD_WANT_SUBSHELL; $$ = $2; }
+	;	
 
 list:		newlines list0
 			{ $$ = $2; }
@@ -149,9 +170,9 @@ list:		newlines list0
 
 list0:		list1
 	|	list1 '\n' newlines
-	//|	list1 '&' newlines
-	//		{ $$ = command_connect ($1, 0, '&'); }
-	|	list1 ';' newlines
+	|	list1 AND newlines
+			{ $$ = command_connect ($1, (COMMAND *)NULL, AND); }
+	|	list1 SEMI newlines
 
 	;
 
@@ -159,38 +180,51 @@ list1:	//	list1 AND_AND newlines list1
 	//		{ $$ = command_connect ($1, $4, AND_AND); }
 	//|	list1 OR_OR newlines list1
 	//		{ $$ = command_connect ($1, $4, OR_OR); }
-	//|	list1 '&' newlines list1
-	//		{ $$ = command_connect ($1, $4, '&'); }
-		list1 ';' newlines list1
-			{ $$ = command_connect ($1, $4, ';'); }
+		list1 AND newlines list1
+			{ $$ = command_connect ($1, $4, AND); }
+	|	list1 SEMI newlines list1
+			{ $$ = command_connect ($1, $4, SEMI); }
 	|	list1 '\n' newlines list1
-			{ $$ = command_connect ($1, $4, ';'); }
-	|	list1 '|' newlines list1
-			{ $$ = command_connect ($1, $4, '|'); }
-	|	command
+			{ $$ = command_connect ($1, $4, SEMI); }
+	|	pipeline
+			{ $$ = $1; }
 	;
 
 newlines:
 	|	newlines '\n'
 	;
 
+/* A simple_list is a list that contains no significant newlines
+   and no leading or trailing newlines.  Newlines are allowed
+   only following operators, where they are not significant.
+
+   This is what an inputunit consists of.  */
+
 simple_list:	simple_list1
-	//|	simple_list1 '&'
-	//		{ $$ = command_connect ($1, (COMMAND *)NULL, '&'); }
-	|	simple_list1 ';'
+			{ $$ = $1; }
+	|	simple_list1 AND
+			{ $$ = command_connect ($1, (COMMAND *)NULL, AND); }
+	|	simple_list1 SEMI
+			{ $$ = $1; }
 	;
 
 simple_list1:	//simple_list1 AND_AND newlines simple_list1
 		//	{ $$ = command_connect ($1, $4, AND_AND); }
 	//|	simple_list1 OR_OR newlines simple_list1
 	//		{ $$ = command_connect ($1, $4, OR_OR); }
-	//|	simple_list1 '&' simple_list1
-	//		{ $$ = command_connect ($1, $3, '&'); }
-		simple_list1 ';' simple_list1
-			{ $$ = command_connect ($1, $3, ';'); }
-	|	simple_list1 '|' newlines simple_list1
-			{ $$ = command_connect ($1, $4, '|'); }
+		simple_list1 AND simple_list1
+			{ $$ = command_connect ($1, $3, AND); }
+	|	simple_list1 SEMI simple_list1
+			{ $$ = command_connect ($1, $3, SEMI); }
+	|	pipeline
+			{ $$ = $1; }
+	;
+
+pipeline:
+		pipeline PIPE newlines pipeline
+			{ $$ = command_connect ($1, $4, PIPE); }
 	|	command
+			{ $$ = $1; }
 	;
 
 %%
@@ -207,7 +241,6 @@ void report_syntax_error (char *message)
 	  {
 	  	char* stream_name = "stdin";
 	  	fprintf(stderr, "%s:%d: `%s'", stream_name, line_number, message);
-	  
 	  }
       else
 		fprintf(stderr, "%s", message);
@@ -221,7 +254,6 @@ void report_syntax_error (char *message)
 void yyerror(char const *s)
 {
     report_syntax_error ((char *)NULL);
-  	//reset_parser ();
 }
 
 /* The number of times that we have encountered an EOF character without

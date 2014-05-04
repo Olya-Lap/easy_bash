@@ -50,7 +50,7 @@ typedef struct element {
 /* What a command looks like. */
 typedef struct command {
   command_type type;	/* FOR CASE WHILE IF CONNECTION or SIMPLE. */
-  int subshell;			/* Non-zero means execute in a subshell. */
+  int flags;			/* Flags controlling execution environment. */
   union {
     struct connection *Connection;
     struct simple_com *Simple;

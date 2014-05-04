@@ -8,7 +8,7 @@ COMMAND * make_command (command_type type, SIMPLE_COM *pointer)
   COMMAND *temp = (COMMAND *)malloc (sizeof (COMMAND));
   temp->type = type;
   temp->value.Simple = pointer;
-  temp->subshell = 0;
+  temp->flags = 0;
   temp->redirects = (REDIRECT *)NULL;
   return (temp);
 }
@@ -90,7 +90,7 @@ COMMAND * make_simple_command (ELEMENT element, COMMAND *command)
       command = (COMMAND *)malloc (sizeof (COMMAND));
       command->type = cm_simple;
       command->redirects = (REDIRECT *)NULL;
-      command->subshell = 0;
+      command->flags = 0;
       command->value.Simple = temp;
     }
   if (element.word)
