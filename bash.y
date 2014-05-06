@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include "functions.c"
 #define YYDEBUG 1
-#define YYPRINT(file, type, value) fprintf(file, "%d", value);
 #define CMD_WANT_SUBSHELL  0x01	/* User wants a subshell: ( command ) */
 int yylex(void);
 void yyerror(char const *);
@@ -23,9 +22,10 @@ static REDIRECTEE redir;
 }
 
 %token PIPE
-%token GREAT
-%token LESS
+%token GREAT GREAT_GREAT
+%token LESS LESS_LESS
 %token SEMI
+%token AND
 %token <word> WORD
 %token <number> NUMBER
 
@@ -43,7 +43,7 @@ static REDIRECTEE redir;
 
 %%
 
-inputunit:	simple_list '\n' 	/* our SIMPLE_LIST */
+inputunit:	simple_list '\n'
 			{
 			  /* Case of regular command.  Discard the error
 			     safety net,and return the command just parsed. */
@@ -103,6 +103,26 @@ redirection:	GREAT WORD
 			{
 			  redir.filename = $3;
 			  $$ = make_redirection ($1, r_input_direction, redir);
+			}
+	|	GREAT_GREAT WORD
+			{
+			  redir.filename = $2;
+			  $$ = make_redirection (1, r_appending_to, redir);
+			}
+	|	NUMBER GREAT_GREAT WORD
+			{
+			  redir.filename = $3;
+			  $$ = make_redirection ($1, r_appending_to, redir);
+			}
+	|	LESS_LESS WORD
+			{
+			  redir.filename = $2;
+			  $$ = make_redirection (0, r_reading_until, redir);
+			}
+	|	NUMBER LESS_LESS WORD
+			{
+			  redir.filename = $3;
+			  $$ = make_redirection ($1, r_reading_until, redir);
 			}
 	;
 

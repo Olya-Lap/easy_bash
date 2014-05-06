@@ -2,7 +2,7 @@
 /* Command Types: */
 typedef enum { cm_simple, cm_connection } command_type;
 
-typedef enum { r_output_direction, r_input_direction, r_inputa_direction } r_instruction;
+typedef enum { r_output_direction, r_input_direction, r_inputa_direction, r_reading_until, r_appending_to } r_instruction;
 
 typedef struct g_list {
   struct g_list *next;
@@ -16,7 +16,6 @@ typedef struct word_desc {
 				   or backslash is present. */
   int assignment;		/* Non-zero means that this word contains an assignment. */
 } WORD_DESC;
-//??
 
 /* A linked list of words. */
 typedef struct word_list {

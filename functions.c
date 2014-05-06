@@ -10,6 +10,7 @@ COMMAND * make_command (command_type type, SIMPLE_COM *pointer)
   temp->value.Simple = pointer;
   temp->flags = 0;
   temp->redirects = (REDIRECT *)NULL;
+  printf("lol");
   return (temp);
 }
 
@@ -25,7 +26,6 @@ COMMAND * command_connect (COMMAND *com1, COMMAND *com2, int connector)
 REDIRECT * make_redirection (int source, r_instruction instruction, REDIRECTEE dest_and_filename)
 {
   REDIRECT *temp = (REDIRECT *)malloc (sizeof (REDIRECT));
-  int kill_leading = 0;
 
   /* First do the common cases. */
   temp->redirector = source;
@@ -41,14 +41,15 @@ REDIRECT * make_redirection (int source, r_instruction instruction, REDIRECTEE d
 
   case r_input_direction: /* <foo */
   case r_inputa_direction:  /* foo & makes this. */
-   // temp->flags = O_RDONLY;
+    //temp->flags = O_RDONLY;
     break;
 
-  //case r_duplicating:   /* 1<&2 */
-    
-  //case r_err_and_out:   /* command &>filename */
-   // temp->flags = O_TRUNC | O_WRONLY | O_CREAT;
-    //break;
+  case r_appending_to:  /* >>foo */
+    //temp->flags = O_APPEND | O_WRONLY | O_CREAT;
+    break;
+
+  case r_reading_until: /* << foo */
+    break;
 
   default:
     fprintf(stderr, "Redirection instruction from yyparse () '%d' is\n\
@@ -56,6 +57,7 @@ out of range in make_redirection ().", instruction);
     abort ();
     break;
   }
+  printf("ololo");
   return (temp);
 }
 
