@@ -1,5 +1,6 @@
 #include <stdio.h>
-#include "general.c"
+#include <fcntl.h>
+#include "execute_cmd.c"
 
 COMMAND *global_command = (COMMAND *)NULL;
 
@@ -36,19 +37,16 @@ REDIRECT * make_redirection (int source, r_instruction instruction, REDIRECTEE d
   switch (instruction) {
 
   case r_output_direction:  /* >foo */
-    //temp->flags = O_TRUNC | O_WRONLY | O_CREAT;
+    temp->flags = O_TRUNC | O_WRONLY | O_CREAT;
     break;
 
   case r_input_direction: /* <foo */
   case r_inputa_direction:  /* foo & makes this. */
-    //temp->flags = O_RDONLY;
+    temp->flags = O_RDONLY;
     break;
 
   case r_appending_to:  /* >>foo */
-    //temp->flags = O_APPEND | O_WRONLY | O_CREAT;
-    break;
-
-  case r_reading_until: /* << foo */
+    temp->flags = O_APPEND | O_WRONLY | O_CREAT;
     break;
 
   default:
@@ -75,6 +73,22 @@ COMMAND * clean_simple_command (COMMAND *command)
       (REDIRECT *)reverse_list ((GENERIC_LIST *)command->value.Simple->redirects);
   }
   return (command);
+}
+
+/* Reverse the chain of structures in LIST.  Output the new head
+   of the chain.  You should always assign the output value of this
+   function to something, or you will lose the chain. */
+GENERIC_LIST *reverse_list (GENERIC_LIST *list)
+{
+  GENERIC_LIST *next, *prev = (GENERIC_LIST *)NULL;
+
+  while (list) {
+    next = list->next;
+    list->next = prev;
+    prev = list;
+    list = next;
+  }
+  return (prev);
 }
 
 /* Return a command which is the connection of the word or redirection
@@ -108,4 +122,39 @@ COMMAND * make_simple_command (ELEMENT element, COMMAND *command)
       command->value.Simple->redirects = element.redirect;
     }
   return (command);
+}
+
+read_command ()
+{
+  global_command = (COMMAND *)NULL;
+  return (yyparse ());
+}
+
+reader_loop ()
+{
+  COMMAND *current_command = (COMMAND *)NULL;
+
+  while (1)
+  {
+    if (read_command () == 0)
+    {
+      if (global_command) {
+        current_command = global_command;
+
+        if (interactive)
+        {
+          executing = 1;
+          execute_command (current_command);
+        }
+
+        //QUIT;
+      }
+    }
+    /*else
+    {
+      // Parse error, maybe discard rest of stream if not interactive. 
+      if (!interactive)
+        EOF_Reached = EOF;
+    }*/
+  }
 }

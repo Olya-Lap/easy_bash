@@ -20,7 +20,9 @@ static int get_input(char *buf, int size);
 nchar [a-zA-Z_0-9]
 digit [0-9]
 command [a-zA-Z][a-zA-Z_0-9]*
+arg [\- a-zA-Z_0-9]
 filename [a-zA-Z_0-9 \-\$\&\)\(\.\/]+
+space [ \t]
 %%
 
 [#].*$      ; // comment
@@ -31,10 +33,10 @@ filename [a-zA-Z_0-9 \-\$\&\)\(\.\/]+
 "&"			return AND;
 ">>"		return GREAT_GREAT;
 "<<"		return LESS_LESS;
+{command}{space}+{arg}+		{yylval.word = (WORD_DESC *)malloc (sizeof (WORD_DESC)); yylval.word->word = strdup(yytext); return WORD; }
 {digit}+	{yylval.number = atoi(yytext); return NUMBER; }
-{command}	{yylval.word = (WORD_DESC *)malloc (sizeof (WORD_DESC)); yylval.word->word = strdup(yytext); return WORD; }
-[ \t]+		;
-.           { printf("Syntax error in line %d\n", yylineno); }
+{space}+	;
+.           { printf("Syntax error in line %d\n", yylineno); return *yytext;}
 %%
 
 void GetPrompt(string& opd)

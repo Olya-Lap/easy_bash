@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#define NO_PIPE -1
 /* Command Types: */
 typedef enum { cm_simple, cm_connection } command_type;
 
@@ -69,3 +70,5 @@ typedef struct connection {
   COMMAND *second;		/* Pointer to the second command. */
   int connector;		/* What separates this command from others. */
 } CONNECTION;
+
+extern COMMAND *global_command;

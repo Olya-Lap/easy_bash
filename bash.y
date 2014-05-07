@@ -114,16 +114,6 @@ redirection:	GREAT WORD
 			  redir.filename = $3;
 			  $$ = make_redirection ($1, r_appending_to, redir);
 			}
-	|	LESS_LESS WORD
-			{
-			  redir.filename = $2;
-			  $$ = make_redirection (0, r_reading_until, redir);
-			}
-	|	NUMBER LESS_LESS WORD
-			{
-			  redir.filename = $3;
-			  $$ = make_redirection ($1, r_reading_until, redir);
-			}
 	;
 
 redirections:	redirection
@@ -289,5 +279,5 @@ int line_number = 0;
 
 int main(void)
 {
-    return yyparse();
+    return read_command ();
 }
