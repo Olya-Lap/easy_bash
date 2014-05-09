@@ -1,18 +1,21 @@
 #include <stdio.h>
+#include <signal.h>
 #include "types.h"
 
-execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
+#ifndef savestring
+#define savestring(x) (char *)strcpy (malloc (1 + strlen (x)), (x))
+#endif
+#define NO_PIPE -1
+
+int execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
 {
   int exec_result;
-  REDIRECT *my_undo_list = (REDIRECT *)NULL;
 
   /* If a command was being explicitly run in a subshell, or if it is
      a shell control-structure, and it has a pipe, then we do the command
      in a subshell. */
 
-  if (command->subshell ||
-      (shell_control_structure (command->type) &&
-       (pipe_out != NO_PIPE || pipe_in != NO_PIPE || asynchronous)))
+  if (command->subshell)
   {
       int paren_pid;
 
@@ -38,8 +41,8 @@ execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
 		  do_piping (pipe_in, pipe_out);
 		  if (command->redirects)
 		    if (!(do_redirections (command->redirects, 1, 0) == 0))
-		      exit (EXECUTION_FAILURE);
-		  exit (execute_command_internal (command, asynchronous, NO_PIPE, NO_PIPE));
+		      exit (1);
+		  exit (execute_command (command, asynchronous, NO_PIPE, NO_PIPE));
 	  }
       else
 	  {
@@ -51,24 +54,23 @@ execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
 		     last command in the pipeline, then we wait for the subshell
 		     and return its exit status as usual. */
 		  if (pipe_out != NO_PIPE)
-		    return (EXECUTION_SUCCESS);
+		    return 0;
 		  
 		  stop_pipeline (asynchronous, (COMMAND *)NULL);
 
 		  if (!asynchronous)
-		    return (last_command_exit_value = wait_for (paren_pid));
+		    return last_command_exit_value = wait_for (paren_pid);
 		  else
 		  {
 		      extern int interactive;
 		      if (interactive)
 			  describe_pid (paren_pid);
-		      return (EXECUTION_SUCCESS);
+		      return 0;
 		  }
 	  }
   }
 
   do_redirections (command->redirects, 1, 1);
-  my_undo_list = (REDIRECT *)copy_redirects (redirection_undo_list);
 
   switch (command->type)
   {
@@ -86,8 +88,6 @@ execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
 	   wait_for() the child. */
 #ifdef JOB_CONTROL
 		if (already_making_children && pipe_out == NO_PIPE)
-#else
-	  	if (pipe_out == NO_PIPE)
 #endif
 	    {
 	      	if (last_pid != last_made_pid)
@@ -121,18 +121,16 @@ execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
 		      tc->redirects = tr;
 		    }
 #endif				/* !JOB_CONTROL */
-		    exec_result = execute_command_internal (tc, 1, pipe_in, pipe_out);
+		    exec_result = execute_command (tc, 1, pipe_in, pipe_out);
 		    if (command->value.Connection->second)
-		      exec_result =
-			execute_command_internal (command->value.Connection->second,
-						  asynchronous, pipe_in, pipe_out);
+		      exec_result =	execute_command (command->value.Connection->second, asynchronous, pipe_in, pipe_out);
 	  	}
 	  	break;
 
 		case ';':
 		  /* Just call execute command on both of them. */
 		  execute_command (command->value.Connection->first);
-		  exec_result = execute_command_internal (command->value.Connection->second, asynchronous, pipe_in, pipe_out);
+		  exec_result = execute_command (command->value.Connection->second, asynchronous, pipe_in, pipe_out);
 	  	break;
 
 		case '|':
@@ -141,20 +139,19 @@ execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
 		    int fildes[2];
 		    if (pipe (fildes) < 0)
 		    {
-				report_error ("Pipe error %d", errno);
-				exec_result = EXECUTION_FAILURE;
+				fprintf(stderr,  ("Pipe error %d", errno);
+				exec_result = 1;
 		    }
 		    else
 		    {
-				execute_command_internal (command->value.Connection->first, asynchronous, pipe_in, fildes[1]);
-				exec_result = execute_command_internal (command->value.Connection->second, asynchronous, fildes[0], pipe_out);
+				execute_command (command->value.Connection->first, asynchronous, pipe_in, fildes[1]);
+				exec_result = execute_command (command->value.Connection->second, asynchronous, fildes[0], pipe_out);
 		    }
 		}
 		break;
 	
 		default:
 		  fprintf(stderr, "Bad connector `%d'!", command->value.Connection->connector);
-		  longjmp (top_level, DISCARD);
 		break;
 	  }
     break;
@@ -163,15 +160,10 @@ execute_command (COMMAND *command, int asynchronous, int pipe_in, int pipe_out)
       fprintf(stderr, "execute_command: Bad command type `%d'!", command->type);
     }
 
-  if (my_undo_list)
-  {
-      do_redirections (my_undo_list, 1, 0);
-      dispose_redirects (my_undo_list);
-  }
-  return (last_command_exit_value = exec_result);
+  return last_command_exit_value = exec_result;
 }
 
-do_piping (int pipe_in, int pipe_out)
+void do_piping (int pipe_in, int pipe_out)
 {
   if (pipe_in != NO_PIPE) {
     dup2 (pipe_in, 0);
@@ -185,7 +177,7 @@ do_piping (int pipe_in, int pipe_out)
   }
 }
 
-do_redirections (REDIRECT *list, int for_real)
+void do_redirections (REDIRECT *list, int for_real)
 {
   int error;
   REDIRECT *temp = list;
@@ -204,7 +196,13 @@ do_redirections (REDIRECT *list, int for_real)
   return (0);
 }
 
-do_redirection (REDIRECT *redirect, int for_real)
+void close_pipes (int in, int out)
+{
+  if (in >= 0) close (in);
+  if (out >= 0) close (out);
+}
+
+void do_redirection (REDIRECT *redirect, int for_real)
 {
   WORD_DESC *redirectee = redirect->redirectee.filename;
   int redirector = redirect->redirector;
@@ -240,4 +238,174 @@ do_redirection (REDIRECT *redirect, int for_real)
       break;
     }
   return (0);
+}
+
+/* Fork, handling errors.  Returns the pid of the newly made child, or 0.
+   COMMAND is just for remembering the name of the command; we don't do
+   anything else with it.  ASYNC_P says what to do with the tty.  If
+   non-zero, then don't give it away. */
+int make_child (char *command, int async_p)
+{
+  int pid, oldmask;
+  
+  oldmask = sigblock (sigmask (SIGINT) | sigmask (SIGCHLD));
+
+  making_children ();
+
+  if ((pid = fork ()) < 0)
+  {
+      sigsetmask (oldmask);
+      fprintf(stderr, "Memory exhausted or process overflow!");
+  }
+ 
+  if (!pid)
+  {
+      /* In the child.  Give this child the right process group, set the
+	 signals to the default state for a new process. */
+      signal (SIGINT, SIG_DFL);
+      signal (SIGQUIT, SIG_DFL);
+      signal (SIGTERM, SIG_DFL);
+
+	  /* All processes in this pipeline belong in the same
+	     process group. */
+
+	  if (!pipeline_pgrp)	/* Then this is the first child. */
+	    pipeline_pgrp = getpid ();
+
+	  /* Check for running command in backquotes. */
+	  if (pipeline_pgrp == shell_pgrp)
+	    {
+	      signal (SIGTSTP, SIG_IGN);
+	      signal (SIGTTOU, SIG_IGN);
+	      signal (SIGTTIN, SIG_IGN);
+	    }
+	  else
+	    {
+	      signal (SIGTSTP, SIG_DFL);
+	      signal (SIGTTOU, SIG_DFL);
+	      signal (SIGTTIN, SIG_DFL);
+	    }
+	
+	  if (!async_p)
+	    give_terminal_to (pipeline_pgrp);
+
+	  setpgrp (0, pipeline_pgrp);
+
+      if (async_p)
+		last_asynchronous_pid = getpid ();
+  }
+  else
+  {
+      /* In the parent.  Remember the pid of the child just created
+	 as the proper pgrp if this is the first child. */
+
+	  if (!pipeline_pgrp)
+	      pipeline_pgrp = pid;
+	  setpgid (pid, pipeline_pgrp);
+
+      /* Place all processes into the jobs array regardless of the
+	 state of job_control.  */
+      add_process (command, pid);
+
+      if (async_p)
+		last_asynchronous_pid = pid;
+
+      last_made_pid = pid;
+  }
+  sigsetmask (oldmask);
+  return (pid);
+}
+
+/* Add this process to the chain being built in the_pipeline.
+   NAME is the command string that will be exec'ed later.
+   PID is the process id of the child. */
+void add_process (char *name, int pid)
+{
+  PROCESS *t = (PROCESS *)malloc (sizeof (PROCESS));
+
+  t->next = the_pipeline;
+  t->pid = pid;
+  t->status.w_status = 0;
+  t->running = 1;
+  t->command = name;
+  the_pipeline = t;
+
+  if (!(t->next))
+  {
+      t->next = t;
+  }
+  else
+  {
+      PROCESS *p = t->next;
+
+      while (p->next != t->next) p = p->next;
+      p->next = t;
+  }
+}
+
+void make_command_string (COMMAND *command)
+{
+  if (!command)
+  {
+      cprintf ("");
+  }
+  else
+  {
+    if (command->subshell)
+		cprintf ("( ");
+
+    switch (command->type)
+	{
+		case cm_simple:
+		  WORD_LIST *words = command->value.Simple->words
+		  while (list)
+    	  {
+      		cprintf ("%s", list->word->word);
+      		list = list->next;
+      		if (list)
+				cprintf ("%s", " ");
+    	  }
+		  break;
+
+		case cm_connection: 
+		  make_command_string (command->value.Connection->first);
+
+		  switch (command->value.Connection->connector)
+		  {
+		    case '&':
+		    case '|':
+		    {
+				char c = command->value.Connection->connector;
+				cprintf ("%c", c);
+				if (c != '&' || command->value.Connection->second)
+				{
+				    cprintf (" ");
+				}
+		    }
+		    break;
+		
+		    case ';':
+			  cprintf (";");
+		    break;
+
+		    default:
+		      cprintf ("OOPS!  Bad connector `%d'!",
+			       command->value.Connection->connector);
+		    break;
+	      }
+
+	  	  make_command_string (command->value.Connection->second);
+	  	break;
+      
+		default:
+		  fprintf (stderr, "OOPS!  Bad command type `%d'!", command->type);
+		break;
+	}
+
+	if (command->subshell)
+		cprintf (" )");
+
+     if (command->redirects)
+		cprintf ("some redirects");
+    }
 }

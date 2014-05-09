@@ -124,13 +124,13 @@ COMMAND * make_simple_command (ELEMENT element, COMMAND *command)
   return (command);
 }
 
-read_command ()
+void read_command ()
 {
   global_command = (COMMAND *)NULL;
   return (yyparse ());
 }
 
-reader_loop ()
+void reader_loop ()
 {
   COMMAND *current_command = (COMMAND *)NULL;
 
